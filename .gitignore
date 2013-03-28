@@ -1,2 +1,6 @@
+#ignore pydev meta files
 .project
 .pydevproject
+
+#ignoring .pyc files
+*.pyc
