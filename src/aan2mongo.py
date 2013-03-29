@@ -26,7 +26,7 @@ class Aan2Mongo:
         self.load_paper_metadata()
         self.load_citation_data()
         self.load_authors_data_to_author_details()
-#        self.load_authors_data_to_paper_info()
+        self.load_authors_data_to_paper_info()
         self.load_paper_text_data()
         self.write_to_mongo()
         self.aanMongoConnection.close()
@@ -35,7 +35,6 @@ class Aan2Mongo:
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
-            print str(currentPaper)
             
             
             self.aanDb.research_papers.insert(currentPaper)
@@ -50,7 +49,9 @@ class Aan2Mongo:
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
         
         for line in authorsFileReader:
-            cleanedLine = line.replace('\n', '').rstrip()
+            decodedLine = line.decode("iso-8859-1")
+            encodedLine = decodedLine.encode('utf-8', 'ignore')
+            cleanedLine = encodedLine.replace('\n', '').rstrip()
             if cleanedLine == '':
                 #if line is blank skip to next line
                 continue
@@ -71,23 +72,35 @@ class Aan2Mongo:
             
             if self.paperInfo.has_key(paperId):
                 paperInfo = self.paperInfo[paperId]
-                paperInfo[self.paperFields.URL] = paperUrl.encode('ascii', 'ignore')
+                paperInfo[self.paperFields.URL] = paperUrl
                 
                 for authorInfo in authors:
                     authorName = authorInfo.split("###")[0].strip()
-                    currentAuthor = self.authorDetails[authorName]
-                    paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    if self.authorDetails.has_key(authorName):
+                        currentAuthor = self.authorDetails[authorName]
+                    else:
+                        continue
+                    if paperInfo.has_key(self.paperFields.AUTHORS_LIST):
+                        paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    else:
+                        paperInfo[self.paperFields.AUTHORS_LIST] = []
+                        paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                        
                 self.paperInfo[paperId] = paperInfo
                     
             else:
-                newPaperInfo = Paper()
-                newPaperInfo[self.paperFields.AAN_ID] = paperId.encode('ascii', 'ignore')
-                newPaperInfo[self.paperFields.URL] = paperUrl.encode('ascii', 'ignore')
+                newPaperInfo = {}
+                newPaperInfo[self.paperFields.AAN_ID] = paperId
+                newPaperInfo[self.paperFields.URL] = paperUrl
                 
                 for authorInfo in authors:
                     authorName = authorInfo.split("###")[0].strip()
                     currentAuthor = self.authorDetails[authorName]
-                    newPaperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    if newPaperInfo.has_key(self.paperFields.AUTHORS_LIST):
+                        newPaperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    else:
+                        newPaperInfo[self.paperFields.AUTHORS_LIST] = []
+                        newPaperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
                 self.paperInfo[paperId] = newPaperInfo
                 
         authorsFileReader.close()
@@ -98,7 +111,9 @@ class Aan2Mongo:
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
         
         for line in authorsFileReader:
-            cleanedLine = line.replace('\n', '').rstrip()
+            decodedLine = line.decode("iso-8859-1")
+            encodedLine = decodedLine.encode("utf-8", 'ignore')
+            cleanedLine = encodedLine.replace('\n', '').rstrip()
             if cleanedLine == '':
                 #if line is blank skip to next line
                 continue
@@ -118,16 +133,16 @@ class Aan2Mongo:
             for authorInfo in authors:
                 authorName = authorInfo.split("###")[0].strip()
                 authorAffiliation = authorInfo.split("###")[1].strip()
-                authorName = unicode(authorName, "utf-8")
-                authorAffiliation = unicode(authorAffiliation, "utf-8")
+                authorName = authorName
+                authorAffiliation = authorAffiliation
                 if self.authorDetails.has_key(authorName):
                     currentAuthor = self.authorDetails[authorName]
                     currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
                     self.authorDetails[authorName] = currentAuthor
                 else:
                     currentAuthor = {}
-                    currentAuthor[self.authorFields.NAME] = authorName.encode('ascii', 'ignore')
-                    currentAuthor[self.authorFields.AFFILIATED_TO] = authorAffiliation.encode('ascii', 'ignore')
+                    currentAuthor[self.authorFields.NAME] = authorName
+                    currentAuthor[self.authorFields.AFFILIATED_TO] = authorAffiliation
                     currentAuthor[self.authorFields.PAPERS_LIST] = []
                     currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
                     self.authorDetails[authorName] = currentAuthor
@@ -146,8 +161,10 @@ class Aan2Mongo:
             prevField = ""
             
             for line in metaDataReader:
-                cleanedLine = line.replace("\n", '').rstrip().decode("cp1250")
-                cleanedLine = cleanedLine.encode("utf-8")
+                decodedLine = line.decode("iso-8859-1")
+                encodedLine = decodedLine.encode("utf-8", 'ignore')
+                cleanedLine = encodedLine.replace("\n", '').rstrip()
+                
                 
                 if not isLineContinuation:
                     #checking for continuation lines
@@ -198,6 +215,8 @@ class Aan2Mongo:
             citationFileReader = open(self.releasePath+"/"+str(year)+"/acl.txt")
             
             for line in citationFileReader:
+                decodedLine = line.decode("iso-8859-1")
+                encodedLine = decodedLine.encode("utf-8", 'ignore')
                 cleanedLine = line.replace('\n', '').rstrip()
                 if cleanedLine == '':
                 # if it is a blank line skip it
@@ -221,10 +240,9 @@ class Aan2Mongo:
         if field == "author":
             paper[self.paperFields.AUTHORS_NAMES] = value.lstrip("{").rstrip("}").split(";")
         if field == "title":
-            print value
             titleValue = value.lstrip('{').rstrip('}')
             
-            paper[self.paperFields.TITLE] = titleValue.encode('utf8', 'ignore')
+            paper[self.paperFields.TITLE] = titleValue
         if field == "venue":
             paper[self.paperFields.VENUE] = value.lstrip("{").rstrip("}")
         if field == "year":
