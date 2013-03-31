@@ -4,19 +4,24 @@ import sys
 
 from dataobjects.author_fields import AuthorFields
 from dataobjects.paper_fields import PaperFields
+from dataobjects.venue_fields import VenueFields
 
 
 class Aan2Mongo:
     
     authorDetails = {}
     paperInfo = {}
+    venueInfo = {}
     
     def __init__(self, pathToAan):
         self.paperFields = PaperFields()
         self.authorFields = AuthorFields()
+        self.venueFields = VenueFields()
         self.aanMongoConnection = Connection()
         self.aanDb = self.aanMongoConnection['mongoling']
         self.aanDb.research_papers.remove({})
+        self.aanDb.venue_stats.remove({})
+        self.aanDb.venue_info.remove({})
         self.aanDb.authors.remove({})
         self.releasePath = pathToAan +"/release";
         self.papersPath = pathToAan+"/papers_text"
@@ -28,6 +33,8 @@ class Aan2Mongo:
         self.load_authors_data_to_author_details()
         self.load_authors_data_to_paper_info()
         self.load_paper_text_data()
+        self.load_venue_data()
+        self.compute_stats()
         self.write_to_mongo()
         self.aanMongoConnection.close()
         
@@ -35,14 +42,46 @@ class Aan2Mongo:
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
-            
-            
             self.aanDb.research_papers.insert(currentPaper)
         
         authorKeys = self.authorDetails.keys()
         for authorKey in authorKeys:
             currentAuthor = self.authorDetails[authorKey]
             self.aanDb.authors.insert(currentAuthor)
+        
+        venueKeys = self.venueInfo.keys()
+        for venueKey in venueKeys:
+            currentVenue = self.venueInfo[venueKey]
+            self.aanDb.venue_data.insert(currentVenue)
+    
+    def compute_stats(self):
+        paperKeys = self.paperInfo.keys()
+        for paperKey in paperKeys:
+            currentPaper = self.paperInfo[paperKey]
+            if currentPaper.has_key(self.paperFields.CITATION_LIST):
+                currentPaper[self.paperFields.CITATION_COUNT] =  len(currentPaper[self.paperFields.CITATION_LIST])
+            else:
+                currentPaper[self.paperFields.CITATION_LIST] = []
+                currentPaper[self.paperFields.CITATION_COUNT] =  len(currentPaper[self.paperFields.CITATION_LIST])
+        
+        authorKeys = self.authorDetails.keys()
+        for authorKey in authorKeys:
+            currentAuthor = self.authorDetails[authorKey]
+            if currentAuthor.has_key(self.authorFields.PAPERS_LIST):
+                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPERS_LIST])
+            else:
+                currentAuthor[self.authorFields.PAPERS_LIST] = []
+                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPERS_LIST])
+        
+        venueKeys = self.venueInfo.keys()
+        for venueKey in venueKeys:
+            currentVenue = self.venueInfo[venueKey]
+            if currentVenue.has_key(self.venueFields.PAPERS_LIST):
+                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPERS_LIST])
+            else:
+                currentVenue[self.venueFields.PAPERS_LIST] = []
+                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPERS_LIST])
+                
             
     def load_authors_data_to_paper_info(self):
         '''loads author objects to corresponding paper info '''
@@ -247,6 +286,24 @@ class Aan2Mongo:
             paper[self.paperFields.VENUE] = value.lstrip("{").rstrip("}")
         if field == "year":
             paper[self.paperFields.YEAR] = value.lstrip("{").rstrip("}")
+        
+    def load_venue_data(self):
+        paperKeys = self.paperInfo.keys()
+        for paperKey in paperKeys:
+            currentPaper = self.paperInfo[paperKey]
+            if currentPaper.has_key(self.paperFields.VENUE):
+                currentVenue = currentPaper[self.paperFields.VENUE]
+                if self.venueInfo.has_key(currentVenue):
+                    venueRecord = self.venueInfo[currentVenue]
+                    venueRecord[self.venueFields.PAPERS_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    self.venueInfo[currentVenue] = venueRecord
+                else:
+                    venueRecord = {}
+                    venueRecord[self.venueFields.NAME] = currentVenue
+                    venueRecord[self.venueFields.PAPERS_LIST] = []
+                    venueRecord[self.venueFields.PAPERS_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    self.venueInfo[currentVenue] = venueRecord
+        
         
 if __name__ == '__main__':
     if len(sys.argv) < 2:
