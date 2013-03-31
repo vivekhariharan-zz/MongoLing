@@ -172,16 +172,18 @@ class Aan2Mongo:
             for authorInfo in authors:
                 authorName = authorInfo.split("###")[0].strip()
                 authorAffiliation = authorInfo.split("###")[1].strip()
-                authorName = authorName
-                authorAffiliation = authorAffiliation
                 if self.authorDetails.has_key(authorName):
                     currentAuthor = self.authorDetails[authorName]
                     currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
+                    affliatedList = currentAuthor[self.authorFields.AFFILIATED_TO]
+                    if authorAffiliation not in affliatedList:
+                        currentAuthor[self.authorFields.AFFILIATED_TO].append(authorAffiliation)
                     self.authorDetails[authorName] = currentAuthor
                 else:
                     currentAuthor = {}
                     currentAuthor[self.authorFields.NAME] = authorName
-                    currentAuthor[self.authorFields.AFFILIATED_TO] = authorAffiliation
+                    currentAuthor[self.authorFields.AFFILIATED_TO] = [] 
+                    currentAuthor[self.authorFields.AFFILIATED_TO].append(authorAffiliation)
                     currentAuthor[self.authorFields.PAPERS_LIST] = []
                     currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
                     self.authorDetails[authorName] = currentAuthor
