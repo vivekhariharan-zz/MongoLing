@@ -6,7 +6,21 @@ from dataobjects.author_fields import AuthorFields
 from dataobjects.paper_fields import PaperFields
 from dataobjects.venue_fields import VenueFields
 
+from os import listdir
+from os.path import isfile, join, isdir
 
+
+def listFiles(dirPath):
+    """Given a directory it returns a list containing all the files in the directory """
+    files = []
+    for f in listdir(dirPath):
+        if isfile(join(dirPath,f)):
+            files.append(join(dirPath,f))
+        if isdir(join(dirPath,f)):
+            files.extend(listFiles(join(dirPath,f)))
+    
+    return files
+            
 class Aan2Mongo:
     
     authorDetails = {}
@@ -20,25 +34,28 @@ class Aan2Mongo:
         self.aanMongoConnection = Connection()
         self.aanDb = self.aanMongoConnection['mongoling']
         self.aanDb.research_papers.remove({})
-        self.aanDb.venue_stats.remove({})
         self.aanDb.venue_info.remove({})
         self.aanDb.authors.remove({})
         self.releasePath = pathToAan +"/release";
         self.papersPath = pathToAan+"/papers_text"
         self.authorsPath = pathToAan+"/author_affiliations"
+        self.citationSummaryPath = pathToAan+"/citation_summaries"
         
     def portData(self):
+        """function that drives the data loading """
         self.load_paper_metadata()
         self.load_citation_data()
         self.load_authors_data_to_author_details()
         self.load_authors_data_to_paper_info()
         self.load_paper_text_data()
+        self.load_citation_summary()
         self.load_venue_data()
         self.compute_stats()
         self.write_to_mongo()
         self.aanMongoConnection.close()
         
     def write_to_mongo(self):
+        """Writes all paper, author and venue objects to mongodb """
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
@@ -54,7 +71,24 @@ class Aan2Mongo:
             currentVenue = self.venueInfo[venueKey]
             self.aanDb.venue_data.insert(currentVenue)
     
+    def load_citation_summary(self):
+        """populates the paper objects with corresponding citation summaries"""
+        citationFiles = listFiles(self.citationSummaryPath)
+        for citationFile in citationFiles:
+            citationFileReader = open(citationFile, 'r')
+            citationFileName = citationFile.split('/')[len(citationFile.split('/')) - 1]
+            print citationFileName
+            paperId = citationFileName.split('.')[0]
+            
+            if self.paperInfo.has_key(paperId):
+                currentPaperInfo = self.paperInfo[paperId]
+                currentPaperInfo[self.paperFields.CITATION_SUMMARY] = citationFileReader.read()
+            
+            citationFileReader.close()
+        
+        
     def compute_stats(self):
+        """computes the stats for each paper, author and object """
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
@@ -81,12 +115,10 @@ class Aan2Mongo:
             else:
                 currentVenue[self.venueFields.PAPERS_LIST] = []
                 currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPERS_LIST])
-                
             
     def load_authors_data_to_paper_info(self):
-        '''loads author objects to corresponding paper info '''
+        """loads author objects to corresponding paper info """
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
-        
         for line in authorsFileReader:
             decodedLine = line.decode("iso-8859-1")
             encodedLine = decodedLine.encode('utf-8', 'ignore')
@@ -126,7 +158,6 @@ class Aan2Mongo:
                         paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
                         
                 self.paperInfo[paperId] = paperInfo
-                    
             else:
                 newPaperInfo = {}
                 newPaperInfo[self.paperFields.AAN_ID] = paperId
@@ -144,11 +175,9 @@ class Aan2Mongo:
                 
         authorsFileReader.close()
                 
-
     def load_authors_data_to_author_details(self):
-        '''populates author objects with affiliation and papers they have authored '''
+        """populates author objects with affiliation and papers they have authored """
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
-        
         for line in authorsFileReader:
             decodedLine = line.decode("iso-8859-1")
             encodedLine = decodedLine.encode("utf-8", 'ignore')
@@ -191,7 +220,7 @@ class Aan2Mongo:
         authorsFileReader.close()
         
     def load_paper_metadata(self):
-        '''creates initial paper objects with metadata from acl-metadata.txt '''
+        """creates initial paper objects with metadata from acl-metadata.txt """
         years = {2008, 2009, 2010, 2011, 2012}
         currentPaper = {}
         isLineContinuation = False
@@ -200,13 +229,10 @@ class Aan2Mongo:
             prevLine = ""
             prevValue = ""
             prevField = ""
-            
             for line in metaDataReader:
                 decodedLine = line.decode("iso-8859-1")
                 encodedLine = decodedLine.encode("utf-8", 'ignore')
                 cleanedLine = encodedLine.replace("\n", '').rstrip()
-                
-                
                 if not isLineContinuation:
                     #checking for continuation lines
                     if cleanedLine == '':
@@ -216,7 +242,6 @@ class Aan2Mongo:
                             continue
                         paperId = currentPaper[self.paperFields.AAN_ID]
                         self.paperInfo[paperId] = currentPaper
-                    
                         currentPaper = {}
                         prevLine = cleanedLine
                         continue
@@ -247,14 +272,27 @@ class Aan2Mongo:
             metaDataReader.close()
     
     def load_paper_text_data(self):
-        pass
+        """populates the paper objects with corresponding paper text"""
+        #TODO: handle .cite files and .body files separately
+        paperTextFiles = listFiles(self.papersPath)
+        for paperTextFile in paperTextFiles:
+            print paperTextFile
+            paperTextFileReader = open(paperTextFile, 'r')
+            paperFileName = paperTextFile.split('/')[len(paperTextFile.split('/')) - 1]
+            print paperFileName
+            paperId = paperFileName.split('.')[0]
+            
+            if self.paperInfo.has_key(paperId):
+                currentPaperInfo = self.paperInfo[paperId]
+                currentPaperInfo[self.paperFields.PAPER_TEXT] = paperTextFileReader.read()
+            
+            paperTextFileReader.close()
     
     def load_citation_data(self):
-        '''Adds citations to the paper objects '''
+        """Adds citation links to the paper objects """
         years = {2008, 2009, 2010, 2011, 2012}
         for year in years:
             citationFileReader = open(self.releasePath+"/"+str(year)+"/acl.txt")
-            
             for line in citationFileReader:
                 decodedLine = line.decode("iso-8859-1")
                 encodedLine = decodedLine.encode("utf-8", 'ignore')
@@ -275,7 +313,7 @@ class Aan2Mongo:
             citationFileReader.close()    
 
     def load_field_value(self, paper, field, value):
-        '''loads particular field into the paper object with the value'''
+        """loads particular field into the paper object with the value"""
         if field == "id":
             paper[self.paperFields.AAN_ID] = value.lstrip("{").rstrip("}")
         if field == "author":
@@ -290,6 +328,7 @@ class Aan2Mongo:
             paper[self.paperFields.YEAR] = value.lstrip("{").rstrip("}")
         
     def load_venue_data(self):
+        """finds venues from papers and collects papers by venue """
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
