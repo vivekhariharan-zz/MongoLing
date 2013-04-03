@@ -7,6 +7,8 @@ from dataobjects.paperfields import PaperFields
 from dataobjects.venuefields import VenueFields
 from dataobjects.papercategoryfields import PaperCategoryFields
 from utils.generalutils import get_dir_names, list_files
+
+from datetime import datetime
             
 class Aan2Mongo:
     
@@ -14,6 +16,7 @@ class Aan2Mongo:
     paperInfo = {}
     venueInfo = {}
     paperCategoryInfo = {}
+    paperCategoryName = {}
     
     def __init__(self, pathToAan):
         pathToAan = pathToAan.rstrip('/')
@@ -25,6 +28,7 @@ class Aan2Mongo:
         
     def setUpDataObjects(self):
         """Initialize the fields class that contains the data fields for each collection """
+        print "Initializing data objects"
         self.paperFields = PaperFields()
         self.authorFields = AuthorFields()
         self.venueFields = VenueFields()
@@ -32,6 +36,7 @@ class Aan2Mongo:
         
     def setUpPaths(self, pathToAan):
         """Used to set the paths for the data folders """
+        print "Setting up paths to data"
         self.releasePath = pathToAan +"/release";
         self.papersPath = pathToAan+"/papers_text"
         self.authorsPath = pathToAan+"/author_affiliations"
@@ -40,21 +45,23 @@ class Aan2Mongo:
         
     def cleanUp(self):
         """remove existing data if it exists"""
+        print "Cleaning up old data"
         self.aanDb.research_papers.remove({})
         self.aanDb.venue_info.remove({})
         self.aanDb.authors.remove({})
         
     def portData(self):
         """function that drives the data loading """
+        print "Beginning Porting"
         self.initialize_paper_categories()
         self.load_paper_metadata()
         self.load_citation_data()
         self.load_authors_data_to_author_details()
         self.load_authors_data_to_paper_info()
-        self.load_paper_text_data()
+#        self.load_paper_text_data()
         self.load_citation_summary()
-        self.load_venue_info()
         self.find_paper_category()
+        self.load_venue_info()
         self.load_paper_category_info()
         self.compute_stats()
         self.write_to_mongo()
@@ -62,6 +69,7 @@ class Aan2Mongo:
         
     def write_to_mongo(self):
         """Writes all paper, author and venue objects to mongodb """
+        print "Writing to mongoling in mongodb"
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
@@ -76,6 +84,11 @@ class Aan2Mongo:
         for venueKey in venueKeys:
             currentVenue = self.venueInfo[venueKey]
             self.aanDb.venue_info.insert(currentVenue)
+            
+        paperCategoryKeys = self.paperCategoryInfo.keys()
+        for paperCategoryKey in paperCategoryKeys:
+            currentPaperCategory = self.paperCategoryInfo[paperCategoryKey]
+            self.aanDb.paper_category_info.insert(currentPaperCategory)
     
     def initialize_paper_categories(self):
         """loading the paper categories by code into a map"""
@@ -84,23 +97,25 @@ class Aan2Mongo:
             cleanedLine = line.replace('\n', '')
             paperCategory = cleanedLine.split('###')[0].strip()
             paperCategoryCode = cleanedLine.split("###")[1].strip()
-            self.paperCategoryInfo[paperCategoryCode] = paperCategory
+            self.paperCategoryName[paperCategoryCode] = paperCategory
             
             
     def find_paper_category(self):
         """takes the paper category code and populates it in the paper object"""
+        print "Finding Categories for each paper"
         paperInfoKeys = self.paperInfo.keys()
         for paperInfoKey in paperInfoKeys:
             paperId = paperInfoKey
             paperCategoryCode = paperId.split('-')[0][0]
             currentPaperInfo = self.paperInfo[paperId]
             currentPaperInfo[self.paperFields.PAPER_CATEGORY_CODE] = paperCategoryCode
-            paperCategory = self.paperCategoryInfo[paperCategoryCode]
+            paperCategory = self.paperCategoryName[paperCategoryCode]
             currentPaperInfo[self.paperFields.PAPER_CATEGORY] = paperCategory
             
             
     def load_citation_summary(self):
         """populates the paper objects with corresponding citation summaries"""
+        print "Loading citation summaires"
         citationFiles = list_files(self.citationSummaryPath)
         for citationFile in citationFiles:
             citationFileReader = open(citationFile, 'r')
@@ -116,6 +131,7 @@ class Aan2Mongo:
         
     def compute_stats(self):
         """computes the stats for each paper, author and object """
+        print "Computing count statistics"
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
@@ -167,6 +183,7 @@ class Aan2Mongo:
             
     def load_authors_data_to_paper_info(self):
         """loads author objects to corresponding paper info """
+        print "Loading author information"
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
         for line in authorsFileReader:
             decodedLine = line.decode("iso-8859-1")
@@ -226,6 +243,7 @@ class Aan2Mongo:
                 
     def load_authors_data_to_author_details(self):
         """populates author objects with affiliation and papers they have authored """
+        print "Compiling author information"
         authorsFileReader = open(self.authorsPath+"/author_affiliations_raw.txt", 'r')
         for line in authorsFileReader:
             decodedLine = line.decode("iso-8859-1")
@@ -270,6 +288,7 @@ class Aan2Mongo:
         
     def load_paper_metadata(self):
         """creates initial paper objects with metadata from acl-metadata.txt """
+        print "Loading paper metadata"
         dirs = get_dir_names(self.releasePath)
         #remove directories that are not years
         for dir in dirs:
@@ -330,6 +349,7 @@ class Aan2Mongo:
     
     def load_paper_text_data(self):
         """populates the paper objects with corresponding paper text"""
+        print "Loading paper text"
         paperTextFiles = list_files(self.papersPath)
         for paperTextFile in paperTextFiles:
             paperTextFileReader = open(paperTextFile, 'r')
@@ -344,6 +364,7 @@ class Aan2Mongo:
     
     def load_citation_data(self):
         """Adds citation links to the paper objects """
+        print "Loading paper citations"
         dirs = get_dir_names(self.releasePath)
         #remove directories that are not years
         for dir in dirs:
@@ -390,6 +411,7 @@ class Aan2Mongo:
         
     def load_venue_info(self):
         """finds venues from papers and collects papers by venue """
+        print "Loading venue information"
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
@@ -411,27 +433,31 @@ class Aan2Mongo:
                     venueRecord[self.venueFields.NAME] = currentVenue
                     venueRecord[self.venueFields.PAPER_LIST] = []
                     venueRecord[self.venueFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                            
                     venueRecord[self.venueFields.PAPER_CATEGORY_CODES] = []
                     venueRecord[self.venueFields.PAPER_CATEGORY_CODES].append(currentPaper[self.paperFields.PAPER_CATEGORY_CODE])
+                    
                     self.venueInfo[currentVenue] = venueRecord
         
     def load_paper_category_info(self):
         """collects papers by category """
+        print "Loading paper category information"
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
             currentPaper = self.paperInfo[paperKey]
             currentPaperCode = currentPaper[self.paperFields.PAPER_CATEGORY_CODE]
-            if self.paperCategoryInfo.hasKey(currentPaperCode):
+            if self.paperCategoryInfo.has_key(currentPaperCode):
                 currentPaperCategoryInfo = self.paperCategoryInfo[currentPaperCode]
                 currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
-                currentVenue = currentPaper[self.paperFields.VENUE]
-                if currentVenue not in currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST]:
-                    currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST].append(currentVenue)
+                if currentPaper.has_key(self.paperFields.VENUE):
+                    currentVenue = currentPaper[self.paperFields.VENUE]
+                    if currentVenue not in currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST]:
+                        currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST].append(currentVenue)
                 self.paperCategoryInfo[currentPaperCode] = currentPaperCategoryInfo
             else:
                 currentPaperCategoryInfo = {}
                 currentPaperCategoryInfo[self.paperCategoryFields.PAPER_CODE] = currentPaperCode
-                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_CATEGORY] = self.paperCategoryInfo[currentPaperCode]
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_CATEGORY] = self.paperCategoryName[currentPaperCode]
                 currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST] = []
                 currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
                 
@@ -447,9 +473,14 @@ if __name__ == '__main__':
         print "Provide path to the aan folder "
         print "Python Aan2Mongo.py <path-to-aan-folder>"
         sys.exit(1)
-    
+    startTime = datetime.now()
+    print "Logging: "+str(startTime.date())
     path = sys.argv[1]
     porter = Aan2Mongo(path)
+    print "Starting load process: "+str(startTime)
     porter.portData()
-            
+    endTime = datetime.now()
+    print "\nLoad Complete!!"
+    print "Time taken: "+str((endTime - startTime))
+    
         
