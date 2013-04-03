@@ -5,28 +5,11 @@ import sys
 from dataobjects.author_fields import AuthorFields
 from dataobjects.paper_fields import PaperFields
 from dataobjects.venue_fields import VenueFields
+from utils.generalutils import get_dir_names, list_files
 
-from os import listdir
-from os.path import isfile, join, isdir
 
-def getDirNames(dirPath):
-    dirNames = []
-    for f in listdir(dirPath):
-        if isdir(join(dirPath,f)):
-            dirNames.append(join(dirPath,f))
-    
-    return dirNames
 
-def listFiles(dirPath):
-    """Given a directory it returns a list containing all the files in the directory """
-    files = []
-    for f in listdir(dirPath):
-        if isfile(join(dirPath,f)):
-            files.append(join(dirPath,f))
-        if isdir(join(dirPath,f)):
-            files.extend(listFiles(join(dirPath,f)))
-    
-    return files
+
             
 class Aan2Mongo:
     
@@ -36,18 +19,30 @@ class Aan2Mongo:
     
     def __init__(self, pathToAan):
         pathToAan = pathToAan.rstrip('/')
+        self.aanMongoConnection = Connection()
+        self.aanDb = self.aanMongoConnection['mongoling']
+        self.cleanUp()
+        self.setUpDataObjects()        
+        self.setUpPaths(pathToAan)
+        
+    def setUpDataObjects(self):
+        """Initialize the fields class that contains the data fields for each collection """
         self.paperFields = PaperFields()
         self.authorFields = AuthorFields()
         self.venueFields = VenueFields()
-        self.aanMongoConnection = Connection()
-        self.aanDb = self.aanMongoConnection['mongoling']
-        self.aanDb.research_papers.remove({})
-        self.aanDb.venue_info.remove({})
-        self.aanDb.authors.remove({})
+        
+    def setUpPaths(self, pathToAan):
+        """Used to set the paths for the data folders """
         self.releasePath = pathToAan +"/release";
         self.papersPath = pathToAan+"/papers_text"
         self.authorsPath = pathToAan+"/author_affiliations"
         self.citationSummaryPath = pathToAan+"/citation_summaries"
+        
+    def cleanUp(self):
+        """remove existing data if it exists"""
+        self.aanDb.research_papers.remove({})
+        self.aanDb.venue_info.remove({})
+        self.aanDb.authors.remove({})
         
     def portData(self):
         """function that drives the data loading """
@@ -57,7 +52,7 @@ class Aan2Mongo:
         self.load_authors_data_to_paper_info()
         self.load_paper_text_data()
         self.load_citation_summary()
-        self.load_venue_data()
+        self.load_venue_info()
         self.compute_stats()
         self.write_to_mongo()
         self.aanMongoConnection.close()
@@ -77,11 +72,11 @@ class Aan2Mongo:
         venueKeys = self.venueInfo.keys()
         for venueKey in venueKeys:
             currentVenue = self.venueInfo[venueKey]
-            self.aanDb.venue_data.insert(currentVenue)
+            self.aanDb.venue_info.insert(currentVenue)
     
     def load_citation_summary(self):
         """populates the paper objects with corresponding citation summaries"""
-        citationFiles = listFiles(self.citationSummaryPath)
+        citationFiles = list_files(self.citationSummaryPath)
         for citationFile in citationFiles:
             citationFileReader = open(citationFile, 'r')
             citationFileName = citationFile.split('/')[len(citationFile.split('/')) - 1]
@@ -228,7 +223,7 @@ class Aan2Mongo:
         
     def load_paper_metadata(self):
         """creates initial paper objects with metadata from acl-metadata.txt """
-        dirs = getDirNames(self.releasePath)
+        dirs = get_dir_names(self.releasePath)
         #remove directories that are not years
         for dir in dirs:
             dirName = dir.split("/")[len(dir.split("/"))-1]
@@ -288,8 +283,7 @@ class Aan2Mongo:
     
     def load_paper_text_data(self):
         """populates the paper objects with corresponding paper text"""
-        #TODO: handle .cite files and .body files separately
-        paperTextFiles = listFiles(self.papersPath)
+        paperTextFiles = list_files(self.papersPath)
         for paperTextFile in paperTextFiles:
             paperTextFileReader = open(paperTextFile, 'r')
             paperFileName = paperTextFile.split('/')[len(paperTextFile.split('/')) - 1]
@@ -303,7 +297,7 @@ class Aan2Mongo:
     
     def load_citation_data(self):
         """Adds citation links to the paper objects """
-        dirs = getDirNames(self.releasePath)
+        dirs = get_dir_names(self.releasePath)
         #remove directories that are not years
         for dir in dirs:
             dirName = dir.split("/")[len(dir.split("/"))-1]
@@ -347,7 +341,7 @@ class Aan2Mongo:
         if field == "year":
             paper[self.paperFields.YEAR] = value.lstrip("{").rstrip("}")
         
-    def load_venue_data(self):
+    def load_venue_info(self):
         """finds venues from papers and collects papers by venue """
         paperKeys = self.paperInfo.keys()
         for paperKey in paperKeys:
@@ -368,7 +362,7 @@ class Aan2Mongo:
         
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print " Provide path to the aan folder "
+        print "Provide path to the aan folder "
         print "Python Aan2Mongo.py <path-to-aan-folder>"
         sys.exit(1)
     
