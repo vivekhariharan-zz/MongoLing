@@ -49,6 +49,7 @@ class Aan2Mongo:
         self.aanDb.research_papers.remove({})
         self.aanDb.venue_info.remove({})
         self.aanDb.authors.remove({})
+        self.aanDb.paper_category_info.remove({})
         
     def portData(self):
         """function that drives the data loading """
