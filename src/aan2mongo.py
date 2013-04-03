@@ -9,6 +9,13 @@ from dataobjects.venue_fields import VenueFields
 from os import listdir
 from os.path import isfile, join, isdir
 
+def getDirNames(dirPath):
+    dirNames = []
+    for f in listdir(dirPath):
+        if isdir(join(dirPath,f)):
+            dirNames.append(join(dirPath,f))
+    
+    return dirNames
 
 def listFiles(dirPath):
     """Given a directory it returns a list containing all the files in the directory """
@@ -28,6 +35,7 @@ class Aan2Mongo:
     venueInfo = {}
     
     def __init__(self, pathToAan):
+        pathToAan = pathToAan.rstrip('/')
         self.paperFields = PaperFields()
         self.authorFields = AuthorFields()
         self.venueFields = VenueFields()
@@ -77,7 +85,6 @@ class Aan2Mongo:
         for citationFile in citationFiles:
             citationFileReader = open(citationFile, 'r')
             citationFileName = citationFile.split('/')[len(citationFile.split('/')) - 1]
-            print citationFileName
             paperId = citationFileName.split('.')[0]
             
             if self.paperInfo.has_key(paperId):
@@ -221,11 +228,19 @@ class Aan2Mongo:
         
     def load_paper_metadata(self):
         """creates initial paper objects with metadata from acl-metadata.txt """
-        years = {2008, 2009, 2010, 2011, 2012}
+        dirs = getDirNames(self.releasePath)
+        #remove directories that are not years
+        for dir in dirs:
+            dirName = dir.split("/")[len(dir.split("/"))-1]
+            if dirName.isdigit():
+                continue
+            else:
+                dirs.remove(dir)
+                
         currentPaper = {}
         isLineContinuation = False
-        for year in years:
-            metaDataReader = open(self.releasePath+"/"+str(year)+"/acl-metadata.txt", 'r')
+        for dir in dirs:
+            metaDataReader = open(dir+"/acl-metadata.txt", 'r')
             prevLine = ""
             prevValue = ""
             prevField = ""
@@ -276,10 +291,8 @@ class Aan2Mongo:
         #TODO: handle .cite files and .body files separately
         paperTextFiles = listFiles(self.papersPath)
         for paperTextFile in paperTextFiles:
-            print paperTextFile
             paperTextFileReader = open(paperTextFile, 'r')
             paperFileName = paperTextFile.split('/')[len(paperTextFile.split('/')) - 1]
-            print paperFileName
             paperId = paperFileName.split('.')[0]
             
             if self.paperInfo.has_key(paperId):
@@ -290,9 +303,16 @@ class Aan2Mongo:
     
     def load_citation_data(self):
         """Adds citation links to the paper objects """
-        years = {2008, 2009, 2010, 2011, 2012}
-        for year in years:
-            citationFileReader = open(self.releasePath+"/"+str(year)+"/acl.txt")
+        dirs = getDirNames(self.releasePath)
+        #remove directories that are not years
+        for dir in dirs:
+            dirName = dir.split("/")[len(dir.split("/"))-1]
+            if dirName.isdigit():
+                continue
+            else:
+                dirs.remove(dir)
+        for dir in dirs:
+            citationFileReader = open(dir+"/acl.txt")
             for line in citationFileReader:
                 decodedLine = line.decode("iso-8859-1")
                 encodedLine = decodedLine.encode("utf-8", 'ignore')

@@ -6,7 +6,8 @@ This is a python Library that ports the ACL Anthology Network data into Mongodb 
 Prerequisites:
 -------------
 Python 2.5+
-Mongodb You can get information on how to install Mongodb here: <http://docs.mongodb.org/manual/installation/> \n
+Mongodb You can get information on how to install Mongodb here: <http://docs.mongodb.org/manual/installation/>
+
 PyMongo: <http://api.mongodb.org/python/current/>
 
 Corpus:
