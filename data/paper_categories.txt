@@ -1,0 +1,19 @@
+Computational Linguistics Journal###J
+ACL (ACL annual meeting)###P
+European chapter of ACL(EACL)###E
+North American chapter of ACL (NAACL)###N
+Lexical and Computational Semantics and Semantic Evaluation###S
+Applied Natural Language Processing Conference (ANLP)###A
+Empirical methods in Natural Language Processing (EMNLP)###D
+Workshops###W
+Committee on Computational Linguistics (COLING)###C
+Human Language Technology (HLT)###H
+International joint conference on Natural Language Processing (IJCNLP)###I
+Language Resources and Evaluation (LREC)###L
+Pacific Asia Conference on Language, Information and Computation (PACLIC)###Y
+Rocling Linguistics conference and journal (Rocling)###O
+Theoretical issues in Natural Language Processing(TINLAP)###T
+Australasian Language Technology Association Workshop (ALTA)###U
+International Conference of Recent Advances of Natural Language Processing (RANLP)###R
+Message understanding Conference (MUC)###M
+NIST Tipster program###X

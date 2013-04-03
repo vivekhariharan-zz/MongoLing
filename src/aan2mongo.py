@@ -2,20 +2,18 @@
 from pymongo import Connection
 import sys
 
-from dataobjects.author_fields import AuthorFields
-from dataobjects.paper_fields import PaperFields
-from dataobjects.venue_fields import VenueFields
+from dataobjects.authorfields import AuthorFields
+from dataobjects.paperfields import PaperFields
+from dataobjects.venuefields import VenueFields
+from dataobjects.papercategoryfields import PaperCategoryFields
 from utils.generalutils import get_dir_names, list_files
-
-
-
-
             
 class Aan2Mongo:
     
     authorDetails = {}
     paperInfo = {}
     venueInfo = {}
+    paperCategoryInfo = {}
     
     def __init__(self, pathToAan):
         pathToAan = pathToAan.rstrip('/')
@@ -30,6 +28,7 @@ class Aan2Mongo:
         self.paperFields = PaperFields()
         self.authorFields = AuthorFields()
         self.venueFields = VenueFields()
+        self.paperCategoryFields = PaperCategoryFields()
         
     def setUpPaths(self, pathToAan):
         """Used to set the paths for the data folders """
@@ -37,6 +36,7 @@ class Aan2Mongo:
         self.papersPath = pathToAan+"/papers_text"
         self.authorsPath = pathToAan+"/author_affiliations"
         self.citationSummaryPath = pathToAan+"/citation_summaries"
+        self.paperCategoriesPath = "../data/paper_categories.txt"
         
     def cleanUp(self):
         """remove existing data if it exists"""
@@ -46,6 +46,7 @@ class Aan2Mongo:
         
     def portData(self):
         """function that drives the data loading """
+        self.initialize_paper_categories()
         self.load_paper_metadata()
         self.load_citation_data()
         self.load_authors_data_to_author_details()
@@ -53,6 +54,8 @@ class Aan2Mongo:
         self.load_paper_text_data()
         self.load_citation_summary()
         self.load_venue_info()
+        self.find_paper_category()
+        self.load_paper_category_info()
         self.compute_stats()
         self.write_to_mongo()
         self.aanMongoConnection.close()
@@ -74,6 +77,28 @@ class Aan2Mongo:
             currentVenue = self.venueInfo[venueKey]
             self.aanDb.venue_info.insert(currentVenue)
     
+    def initialize_paper_categories(self):
+        """loading the paper categories by code into a map"""
+        paperCategoryFileReader = open(self.paperCategoriesPath, 'r')
+        for line in paperCategoryFileReader:
+            cleanedLine = line.replace('\n', '')
+            paperCategory = cleanedLine.split('###')[0].strip()
+            paperCategoryCode = cleanedLine.split("###")[1].strip()
+            self.paperCategoryInfo[paperCategoryCode] = paperCategory
+            
+            
+    def find_paper_category(self):
+        """takes the paper category code and populates it in the paper object"""
+        paperInfoKeys = self.paperInfo.keys()
+        for paperInfoKey in paperInfoKeys:
+            paperId = paperInfoKey
+            paperCategoryCode = paperId.split('-')[0][0]
+            currentPaperInfo = self.paperInfo[paperId]
+            currentPaperInfo[self.paperFields.PAPER_CATEGORY_CODE] = paperCategoryCode
+            paperCategory = self.paperCategoryInfo[paperCategoryCode]
+            currentPaperInfo[self.paperFields.PAPER_CATEGORY] = paperCategory
+            
+            
     def load_citation_summary(self):
         """populates the paper objects with corresponding citation summaries"""
         citationFiles = list_files(self.citationSummaryPath)
@@ -99,24 +124,46 @@ class Aan2Mongo:
             else:
                 currentPaper[self.paperFields.CITATION_LIST] = []
                 currentPaper[self.paperFields.CITATION_COUNT] =  len(currentPaper[self.paperFields.CITATION_LIST])
+            
+            if currentPaper.has_key(self.paperFields.AUTHOR_LIST):
+                currentPaper[self.paperFields.AUTHOR_COUNT] = len(currentPaper[self.paperFields.AUTHOR_LIST])
+            else:
+                currentPaper[self.paperFields.AUTHOR_LIST] = []
+                currentPaper[self.paperFields.AUTHOR_COUNT] = len(currentPaper[self.paperFields.AUTHOR_LIST])
+                
         
         authorKeys = self.authorDetails.keys()
         for authorKey in authorKeys:
             currentAuthor = self.authorDetails[authorKey]
-            if currentAuthor.has_key(self.authorFields.PAPERS_LIST):
-                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPERS_LIST])
+            if currentAuthor.has_key(self.authorFields.PAPER_LIST):
+                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPER_LIST])
             else:
-                currentAuthor[self.authorFields.PAPERS_LIST] = []
-                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPERS_LIST])
+                currentAuthor[self.authorFields.PAPER_LIST] = []
+                currentAuthor[self.authorFields.PAPER_COUNT] = len(currentAuthor[self.authorFields.PAPER_LIST])
         
         venueKeys = self.venueInfo.keys()
         for venueKey in venueKeys:
             currentVenue = self.venueInfo[venueKey]
-            if currentVenue.has_key(self.venueFields.PAPERS_LIST):
-                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPERS_LIST])
+            if currentVenue.has_key(self.venueFields.PAPER_LIST):
+                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPER_LIST])
             else:
-                currentVenue[self.venueFields.PAPERS_LIST] = []
-                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPERS_LIST])
+                currentVenue[self.venueFields.PAPER_LIST] = []
+                currentVenue[self.venueFields.PAPER_COUNT] = len(currentVenue[self.venueFields.PAPER_LIST])
+        
+        paperCategoryKeys = self.paperCategoryInfo.keys()
+        for paperCategoryKey in paperCategoryKeys:
+            currentPaperCategory = self.paperCategoryInfo[paperCategoryKey]
+            if currentPaperCategory.has_key(self.paperCategoryFields.PAPER_LIST):
+                currentPaperCategory[self.paperCategoryFields.PAPER_COUNT] = len(currentPaperCategory[self.paperCategoryFields.PAPER_LIST])
+            else:
+                currentPaperCategory[self.paperCategoryFields.PAPER_LIST] = []
+                currentPaperCategory[self.paperCategoryFields.PAPER_COUNT] = len(currentPaperCategory[self.paperCategoryFields.PAPER_LIST])
+                
+            if currentPaperCategory.has_key(self.paperCategoryFields.VENUE_LIST):
+                currentPaperCategory[self.paperCategoryFields.VENUE_COUNT] = len(currentPaperCategory[self.paperCategoryFields.VENUE_LIST])
+            else:
+                currentPaperCategory[self.paperCategoryFields.VENUE_LIST] = []
+                currentPaperCategory[self.paperCategoryFields.VENUE_COUNT] = len(currentPaperCategory[self.paperCategoryFields.VENUE_LIST])
             
     def load_authors_data_to_paper_info(self):
         """loads author objects to corresponding paper info """
@@ -153,11 +200,11 @@ class Aan2Mongo:
                         currentAuthor = self.authorDetails[authorName]
                     else:
                         continue
-                    if paperInfo.has_key(self.paperFields.AUTHORS_LIST):
-                        paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    if paperInfo.has_key(self.paperFields.AUTHOR_LIST):
+                        paperInfo[self.paperFields.AUTHOR_LIST].append(currentAuthor)
                     else:
-                        paperInfo[self.paperFields.AUTHORS_LIST] = []
-                        paperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                        paperInfo[self.paperFields.AUTHOR_LIST] = []
+                        paperInfo[self.paperFields.AUTHOR_LIST].append(currentAuthor)
                         
                 self.paperInfo[paperId] = paperInfo
             else:
@@ -168,11 +215,11 @@ class Aan2Mongo:
                 for authorInfo in authors:
                     authorName = authorInfo.split("###")[0].strip()
                     currentAuthor = self.authorDetails[authorName]
-                    if newPaperInfo.has_key(self.paperFields.AUTHORS_LIST):
-                        newPaperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                    if newPaperInfo.has_key(self.paperFields.AUTHOR_LIST):
+                        newPaperInfo[self.paperFields.AUTHOR_LIST].append(currentAuthor)
                     else:
-                        newPaperInfo[self.paperFields.AUTHORS_LIST] = []
-                        newPaperInfo[self.paperFields.AUTHORS_LIST].append(currentAuthor)
+                        newPaperInfo[self.paperFields.AUTHOR_LIST] = []
+                        newPaperInfo[self.paperFields.AUTHOR_LIST].append(currentAuthor)
                 self.paperInfo[paperId] = newPaperInfo
                 
         authorsFileReader.close()
@@ -205,7 +252,7 @@ class Aan2Mongo:
                 authorAffiliation = authorInfo.split("###")[1].strip()
                 if self.authorDetails.has_key(authorName):
                     currentAuthor = self.authorDetails[authorName]
-                    currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
+                    currentAuthor[self.authorFields.PAPER_LIST].append(paperId)
                     affliatedList = currentAuthor[self.authorFields.AFFILIATED_TO]
                     if authorAffiliation not in affliatedList:
                         currentAuthor[self.authorFields.AFFILIATED_TO].append(authorAffiliation)
@@ -215,8 +262,8 @@ class Aan2Mongo:
                     currentAuthor[self.authorFields.NAME] = authorName
                     currentAuthor[self.authorFields.AFFILIATED_TO] = [] 
                     currentAuthor[self.authorFields.AFFILIATED_TO].append(authorAffiliation)
-                    currentAuthor[self.authorFields.PAPERS_LIST] = []
-                    currentAuthor[self.authorFields.PAPERS_LIST].append(paperId)
+                    currentAuthor[self.authorFields.PAPER_LIST] = []
+                    currentAuthor[self.authorFields.PAPER_LIST].append(paperId)
                     self.authorDetails[authorName] = currentAuthor
 
         authorsFileReader.close()
@@ -331,7 +378,7 @@ class Aan2Mongo:
         if field == "id":
             paper[self.paperFields.AAN_ID] = value.lstrip("{").rstrip("}")
         if field == "author":
-            paper[self.paperFields.AUTHORS_NAMES] = value.lstrip("{").rstrip("}").split(";")
+            paper[self.paperFields.AUTHOR_NAMES] = value.lstrip("{").rstrip("}").split(";")
         if field == "title":
             titleValue = value.lstrip('{').rstrip('}')
             
@@ -350,16 +397,51 @@ class Aan2Mongo:
                 currentVenue = currentPaper[self.paperFields.VENUE]
                 if self.venueInfo.has_key(currentVenue):
                     venueRecord = self.venueInfo[currentVenue]
-                    venueRecord[self.venueFields.PAPERS_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    venueRecord[self.venueFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    if venueRecord.has_key(self.venueFields.PAPER_CATEGORY_CODES):
+                        if currentPaper[self.paperFields.PAPER_CATEGORY_CODE] not in venueRecord[self.venueFields.PAPER_CATEGORY_CODES]:
+                            venueRecord[self.venueFields.PAPER_CATEGORY_CODES].append(currentPaper[self.paperFields.PAPER_CATEGORY_CODE])
+                        else:
+                            venueRecord[self.venueFields.PAPER_CATEGORY_CODES] = []
+                            venueRecord[self.venueFields.PAPER_CATEGORY_CODES].append(currentPaper[self.paperFields.PAPER_CATEGORY_CODE])
+                            
                     self.venueInfo[currentVenue] = venueRecord
                 else:
                     venueRecord = {}
                     venueRecord[self.venueFields.NAME] = currentVenue
-                    venueRecord[self.venueFields.PAPERS_LIST] = []
-                    venueRecord[self.venueFields.PAPERS_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    venueRecord[self.venueFields.PAPER_LIST] = []
+                    venueRecord[self.venueFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                    venueRecord[self.venueFields.PAPER_CATEGORY_CODES] = []
+                    venueRecord[self.venueFields.PAPER_CATEGORY_CODES].append(currentPaper[self.paperFields.PAPER_CATEGORY_CODE])
                     self.venueInfo[currentVenue] = venueRecord
         
-        
+    def load_paper_category_info(self):
+        """collects papers by category """
+        paperKeys = self.paperInfo.keys()
+        for paperKey in paperKeys:
+            currentPaper = self.paperInfo[paperKey]
+            currentPaperCode = currentPaper[self.paperFields.PAPER_CATEGORY_CODE]
+            if self.paperCategoryInfo.hasKey(currentPaperCode):
+                currentPaperCategoryInfo = self.paperCategoryInfo[currentPaperCode]
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                currentVenue = currentPaper[self.paperFields.VENUE]
+                if currentVenue not in currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST]:
+                    currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST].append(currentVenue)
+                self.paperCategoryInfo[currentPaperCode] = currentPaperCategoryInfo
+            else:
+                currentPaperCategoryInfo = {}
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_CODE] = currentPaperCode
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_CATEGORY] = self.paperCategoryInfo[currentPaperCode]
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST] = []
+                currentPaperCategoryInfo[self.paperCategoryFields.PAPER_LIST].append(currentPaper[self.paperFields.AAN_ID])
+                
+                currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST] = []
+                currentVenue = currentPaper[self.paperFields.VENUE]
+                if currentVenue not in currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST]:
+                    currentPaperCategoryInfo[self.paperCategoryFields.VENUE_LIST].append(currentVenue)
+                self.paperCategoryInfo[currentPaperCode] = currentPaperCategoryInfo
+                
+                
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print "Provide path to the aan folder "
