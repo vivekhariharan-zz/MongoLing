@@ -51,11 +51,13 @@ class FileGrouper:
             fileName = currentFile.split('/')[len(currentFile.split('/'))-1]
             paperCode = fileName.split('-')[0]
             paperCategory = paperCode[0]
-            paperYear = int(paperCode[1::]) +2000
+            paperYear = paperCode[1::]
+            parsedDate = datetime.strptime(paperYear, "%y")
+            
             currentPaperCategoryOutput = outputFolder+"/"+paperCategory
             if self.isAfter2k == True:
-                #checking if file is after year 2000
-                if paperYear >= 2000:
+                #checking if file is after parsedDate 2000
+                if parsedDate.year >= 2000:
                     if not os.path.exists(currentPaperCategoryOutput):
                         os.makedirs(currentPaperCategoryOutput)
                     copyfile(currentFile, currentPaperCategoryOutput+"/"+fileName)
